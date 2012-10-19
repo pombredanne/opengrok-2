@@ -13,10 +13,6 @@ to it, like say several linux kernels.
 This is a requirement, but as it's a currently a standalone service
 it's perfectly functional in it's current state.
 
-=head2 md5sum source archives
-
-Another pre-requisite for charm store acceptance
-
 =head2 Rework to switch/case "common script" with symlink architecture
 
 There's lots of examples of this, basically the switch statement

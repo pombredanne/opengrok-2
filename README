@@ -10,7 +10,7 @@ written in Java.
 
 To deploy:
 
-	juju bootstrap
+    juju bootstrap
     juju deploy opengrok
     juju expose opengrok
 
@@ -18,11 +18,22 @@ Then do a `juju status` to determine the IP of the service, and open
 http://IPADDRESS:8080/source
 
 The opengrok charm uses a standalone tomcat6 instance and is very space,
-I/O, and CPU intensive. It is not co-op this service with an existing
-servlet engine at this time.
+I/O, and CPU intensive. It is not recommended to co-op this service with
+an existing servlet engine unless you really know what you're doing.
+
+Currently opengrok is setup as a single project. Source code to be indexed
+should be pushed /var/opengrok/src and then update the index by:
+
+    cd /opt/opengrok/bin && ./OpenGrok update
+
+This takes a while and should probably be setup as a nighly cron job
+
+By default a branch of the latest juju source is downloaded and indexed
+for demonstration purposes.
 
 Links:
 
 - Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/
 - Binary: http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
 - Code: hg clone ssh://anon@hg.opensolaris.org/hg/opengrok/trunk opengrok-dev
+# vim:ts=4:sw=4:et:

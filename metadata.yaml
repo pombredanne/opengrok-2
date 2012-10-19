@@ -2,4 +2,9 @@ name: opengrok
 summary: "OpenGrok source code search and cross-reference"
 maintainer: "Peter M. Petrakis <peter.petrakis@canonical.com>"
 description: |
-    Installs the opengrok source code search engine
+    Installs the opengrok source code search and cross-reference engine
+
+    Currently configured as a standalone tomcat6 service. Opengrok is
+    space, cpu, and i/o intensive service.
+
+# vim:ts=4:sw=4:et:

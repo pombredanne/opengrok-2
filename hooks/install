@@ -1,46 +1,37 @@
 #!/bin/bash
-set -eux
-# TODO 
-# * idempontent
-# * rework to switch/case "common script" with symlink architecture
-# * create hook to integrate with existing tomcat6 service.
-# * parameterize opengrok config at runtime
-# * attach and manage persistant storage for src & data
+set -eu # -x for verbose logging to juju debug-log
 
 tarball=opengrok-0.11.1.tar.gz
+tarball_sha256=b49e795f3421117e0e1176bf786335c3aba70ad67ad77fb2800f9f4d6ae246c5
 grokjar=http://hub.opensolaris.org/bin/download/Project+opengrok/files/${tarball}
 
 juju-log "Preparing to install OpenGrok"
-export DEBIAN_FRONTEND=noninteractive
-apt-get -q -y install tomcat6 exuberant-ctags wget bzr
+add-apt-repository ppa:charmers/charm-helpers
+apt-get update
+apt-get -qqy install tomcat6 exuberant-ctags wget bzr charm-helper-sh
 
 juju-log "Installing opengrok 11.1 JAR from tarball"
-pushd /opt
-wget ${grokjar} 2>/dev/null
-tar xzvf ${tarball}
-ln -s opengrok-0.11.1 opengrok
-popd
+. /usr/share/charm-helper/sh/net.sh
+templocation=`ch_get_file ${grokjar} ${tarball_sha256}`
+tar xzf ${templocation} -C /opt
+ln -s /opt/opengrok-0.11.1 /opt/opengrok
 
 juju-log "deploying opengrok war to servlet root"
 # deploy script scans for common servlets and had hardcoded paths
 # should you use tomcat7 this will probably not work.
-pushd /opt/opengrok/bin
-./OpenGrok deploy
-popd
+cd /opt/opengrok/bin && ./OpenGrok deploy
 
 juju-log "creating opengrok src and data store"
 mkdir -p /var/opengrok/src /var/opengrok/data
 
 juju-log "acquiring example source code: juju"
-pushd /var/opengrok/src
-bzr branch lp:juju 2>/dev/null
-popd
+bzr branch lp:juju /var/opengrok/src/juju 2>/dev/null
 
 juju-log "indexing..."
-pushd /opt/opengrok/bin
-./OpenGrok index
-popd
+cd /opt/opengrok/bin && ./OpenGrok index
 
 open-port 8080/tcp
 
 juju-log "opengrok installed, expose service and visit http://HOSTIP:8080/source"
+
+# vim:ts=4:sw=4:et:
