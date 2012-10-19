@@ -1,0 +1,28 @@
+"A wicked fast source browser"
+
+OpenGrok is a fast and usable source code search and cross reference engine.
+It helps you search, cross-reference and navigate your source tree. It can
+understand various program file formats and version control histories like
+Mercurial, Git, SCCS, RCS, CVS, Subversion, Teamware, ClearCase, Perforce,
+Monotone and Bazaar. In other words it lets you grok (profoundly understand)
+source code and is developed in the open, hence the name OpenGrok. It is
+written in Java.
+
+To deploy:
+
+	juju bootstrap
+    juju deploy opengrok
+    juju expose opengrok
+
+Then do a `juju status` to determine the IP of the service, and open
+http://IPADDRESS:8080/source
+
+The opengrok charm uses a standalone tomcat6 instance and is very space,
+I/O, and CPU intensive. It is not co-op this service with an existing
+servlet engine at this time.
+
+Links:
+
+- Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/
+- Binary: http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
+- Code: hg clone ssh://anon@hg.opensolaris.org/hg/opengrok/trunk opengrok-dev

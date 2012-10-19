@@ -1,0 +1,47 @@
+: << 'END_OF_DOCS'
+=head1 TODO 
+
+Opengrok works fine as a standalone service. When it's fully exploited
+however it becomes a disk and cpu hungry service. While it has the
+concepts of projects it remains to be seen if opengrok can update
+projects asynchronously, perhaps on remote "update slaves". It
+essentially has O(N^2) when you really add several large projects
+to it, like say several linux kernels.
+
+=head2 Idempotent entry points
+
+This is a requirement, but as it's a currently a standalone service
+it's perfectly functional in it's current state.
+
+=head2 md5sum source archives
+
+Another pre-requisite for charm store acceptance
+
+=head2 Rework to switch/case "common script" with symlink architecture
+
+There's lots of examples of this, basically the switch statement
+uses "basename" to determine the entry point and executes the
+according bash functions. Tidy, puts everything in one file.
+
+=head2 Create hook to integrate with existing tomcat6 service
+
+I've looked the website relation for tomcat6 and the integration
+of additional services isn't very clear to me. I also hesitate
+to co-op this with a general servlet engine as the IO/CPU demands
+will easily starve out everything else.
+
+=head2 Parameterize opengrok config at runtime
+
+A prerequisite to this is actually understanding the configuration.xml
+syntax, the documentation could stand to be much improved on the subject.
+It's currently configured as a single project.
+
+=head2 Attach and manage persistent storage for src & data
+
+Runtime config parameterization is a prerequisite to this. Ideally I'd
+like to be able to have a project per volume and stitch it all together
+dynamically.
+
+=cut
+
+END_OF_DOCS
