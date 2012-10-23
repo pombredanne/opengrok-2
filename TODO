@@ -8,11 +8,6 @@ projects asynchronously, perhaps on remote "update slaves". It
 essentially has O(N^2) when you really add several large projects
 to it, like say several linux kernels.
 
-=head2 Idempotent entry points
-
-This is a requirement, but as it's a currently a standalone service
-it's perfectly functional in it's current state.
-
 =head2 Rework to switch/case "common script" with symlink architecture
 
 There's lots of examples of this, basically the switch statement
