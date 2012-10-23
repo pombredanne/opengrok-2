@@ -31,9 +31,20 @@ This takes a while and should probably be setup as a nighly cron job
 By default a branch of the latest juju source is downloaded and indexed
 for demonstration purposes.
 
+Known Issues:
+
+A bug was discovered with the history index building and has been disabled
+in the meanwhile by this charm. Tracked upstream by:
+
+    http://defect.opensolaris.org/bz/show_bug.cgi?id=19245
+
+    NOTE: a dedicated opensolaris login is required to update bugs. OpenID is
+          unsupported.
+
 Links:
 
 - Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/
+- BugTracker: http://defect.opensolaris.org/bz/describecomponents.cgi?product=opengrok
 - Binary: http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
 - Code: hg clone ssh://anon@hg.opensolaris.org/hg/opengrok/trunk opengrok-dev
 # vim:ts=4:sw=4:et:

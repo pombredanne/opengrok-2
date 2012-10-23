@@ -1,0 +1,64 @@
+Opengrok can be a little contankerous considering it supports N VCS
+and applies extended features based on those VCS, namely annotations
+and history. You may find that Opengrok index|update may fail with
+a cryptic error like:
+
+	# cd /opt/opengrok/bin && ./OpenGrok index
+	Loading the default instance configuration ...
+		Creating default /var/opengrok/logging.properties ... 
+	Killed
+
+Probably means theres an error in the execution of the program
+itself. This being java, there's a hefty amount of shell script
+surrounding even most simple invocation of a program. To discover
+how the program is being invoked we'll need to dig into
+/opt/opengrok/bin/OpenGrok itself.
+
+Debug Tricks
+===================
+ * Enable verbosity: You'd think this would be as simple as passing -v, that
+ currently doesn't work. To enable verbosity:
+ 	
+	OPENGROK_VERBOSE=1 ./OpenGrok <VERB>
+
+ * Bisection is your friend
+
+  There's a case statement that drives each OpenGrok action which further
+  breaks down to a set of setup functions. It's a fairly trivial affair
+  to track these down and insert a "return 0" as the first line in the function
+  call. Continue bisecting until the original error message goes away, then
+  bisect the remainder. StdInvocation() is the usual suspect.
+
+
+ * Make use of ${DO} variable
+
+	This is a empty variable that can be used to define say "echo" in
+	a given code block to determine what's going on. For example.
+
+		StdInvocation()
+		{
+				DO=echo
+				${DO} ${JAVA} ${JAVA_OPTS} ${PROPERTIES}                    \
+						${LOGGER_PROPERTIES}                                    \
+		...
+	 
+		# ./OpenGrok update
+		Loading the default instance configuration ...
+		/usr/lib/jvm/java-6-openjdk-amd64/jre/bin/java -Xmx2048m         \
+    -Dorg.opensolaris.opengrok.history.git=/usr/bin/git              \
+    -Dorg.opensolaris.opengrok.history.Bazaar=/usr/bin/bzr           \
+ -Djava.util.logging.config.file=/var/opengrok/logging.properties    \
+ -jar /opt/opengrok/bin/../lib/opengrok.jar -P -S -r on -v           \
+ -c /usr/bin/ctags-exuberant -a on -W /var/opengrok/etc/configuration.xml \
+ -U localhost:2424 -s /var/opengrok/src -d /var/opengrok/data -H
+
+ Now you can run the offending line directly and see the output for itself.
+ In this particular case I found that the History generator, driven by -H, was
+ causing sporatic crashes during index building. Clearly an upstream bug.
+
+
+ * Use the bash debugger for bragging rights :-)
+   http://bashdb.sourceforge.net/bashdb.html
+
+EOF
+# vim:ts=2:sw=2:et:
