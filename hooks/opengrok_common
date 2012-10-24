@@ -1,0 +1,132 @@
+#!/bin/bash
+# vim:ts=2:sw=2:et:filetype=sh:
+set -eux #-x for verbose logging to juju debug-log
+
+CWD=$(dirname $0)
+
+install_tomcat6() {
+  apt-get -qq update
+  apt-get -qqy install tomcat6
+}
+
+install_opengrok_update_cronjob() {
+  juju-log "Installing daily index update cron job"
+  # unconditionally update this script
+  rm -f /etc/cron.daily/opengrok
+  tee /etc/cron.daily/opengrok << EOF
+#!/bin/sh
+cd /opt/opengrok/bin && ./OpenGrok update
+EOF
+  chmod +x /etc/cron.daily/opengrok
+}
+
+create_initial_index() {
+  juju-log "Opengrok indexing (this could take a while)..."
+  # XXX for whatever reason, the first time an index is built opengrok
+  # insist's on building an index for the history, which always fails.
+  # On subsequent runs however, it honors the lack of a -H switch. So
+  # the workaround for setting up new projects is to run update twice.
+  . /etc/cron.daily/opengrok || :
+  # XXX report $?
+  OPENGROK_VERBOSE=1 . /etc/cron.daily/opengrok
+  juju-log "Opengrok indexing complete"
+}
+
+install_opengrok() {
+  # For reference
+  local upstream_sha256=b49e795f3421117e0e1176bf786335c3aba70ad67ad77fb2800f9f4d6ae246c5
+  local upstream_grok_jar=http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
+
+  # Workaround http://defect.opensolaris.org/bz/show_bug.cgi?id=19245
+  local tarball_sha256=8ae34f00bd2bf672b7cea2868d9de5fafe7c00ba03c869bad6996dcaaa0e522d
+  local grok_jar=http://people.canonical.com/~ppetraki/charms/opengrok/opengrok-0.11.1+ubuntu1.tar.gz
+
+  local tarball=$(echo ${grok_jar} | perl -ne '@F = split("/",$_); print("$F[-1]");')
+  local basedir=$(echo ${tarball}  | perl -ne '@F = split(".tar.gz",$_); print("$F[0]");')
+
+  local grok_src=/var/opengrok/src
+  local grok_data=/var/opengrok/data
+  local grok_etc=/var/opengrok/etc
+
+  juju-log "Preparing to install OpenGrok"
+  add-apt-repository -y ppa:charmers/charm-helpers
+  apt-get -qq update
+  apt-get -qqy install exuberant-ctags bzr charm-helper-sh
+
+  # loading helper library
+  . /usr/share/charm-helper/sh/net.sh
+
+  juju-log "Installing ${basedir} JAR from tarball"
+  local templocation=$(ch_get_file ${grok_jar} ${tarball_sha256})
+  rm -rf /opt/opengrok/${basedir}
+  tar xzf ${templocation} -C /opt
+
+  # update symlink to the latest
+  ln -sf /opt/${basedir} /opt/opengrok
+
+  juju-log "Deploying opengrok war to servlet root"
+  # deploy script scans for common servlets and had hardcoded paths
+  # should you use tomcat7 this will probably not work.
+  cd /opt/opengrok/bin && ./OpenGrok deploy
+
+  juju-log "Creating opengrok src and data store"
+  mkdir -p ${grok_src}
+
+  # if data/ already exists, wipe it out unconditionally (for now)
+  # index could be corrupted and we wish to ensure the service
+  # is in the best possible state to run the first time.
+  [ -d "${grok_data}" ] && rm -rf ${grok_data}
+  mkdir -p ${grok_data}
+
+  # Same goes for local configuration
+  [ -d "${grok_etc}" ] && rm -rf ${grok_etc}
+  mkdir -p ${grok_etc}
+}
+
+start_opengrok() {
+  juju-log "Starting opengrok service"
+  service status tomcat6 || service tomcat6 start
+  open-port 8080/tcp
+}
+
+stop_opengrok() {
+  juju-log "Stopping opengrok service"
+  service tomcat6 stop
+  close-port 8080/tcp
+}
+
+restart_opengrok() {
+  # This is a bit overkill, but it doesn't hurt either
+  juju-log "Restarting opengrok service"
+  service tomcat6 status && service tomcat6 restart || service tomcat6 start
+}
+
+# Actual processing
+COMMAND=$(basename $0)
+
+case $COMMAND in
+  install)
+    install_tomcat6
+    install_opengrok
+    restart_opengrok
+    juju-log "Opengrok installed, expose service and visit http://HOSTIP:8080/source"
+    ;;
+  start)
+    start_opengrok
+    ;;
+  stop)
+    stop_opengrok
+    ;;
+  config-changed)
+    # XXX this is probably where we'll kick off index updates from the "project list" changing
+    ;;
+  upgrade-charm)
+    install_opengrok
+    restart_opengrok 
+    juju-log "Opengrok upgraded"
+    ;;
+  *)
+    juju-log "Command not recognized"
+esac
+
+exit 0

@@ -1,37 +1,69 @@
+# vim:ts=2:sw=2:et:ft=pod:
 : << 'END_OF_DOCS'
 =head1 TODO 
 
-Opengrok works fine as a standalone service. When it's fully exploited
-however it becomes a disk and cpu hungry service. While it has the
-concepts of projects it remains to be seen if opengrok can update
-projects asynchronously, perhaps on remote "update slaves". It
-essentially has O(N^2) when you really add several large projects
-to it, like say several linux kernels.
+  Opengrok works fine as a standalone service. When it's fully exploited
+  however it becomes a disk and cpu hungry service. While it has the
+  concepts of projects it remains to be seen if opengrok can update
+  projects asynchronously, perhaps on remote "update slaves". It
+  essentially has O(N^2) when you really add several large projects
+  to it, like say several linux kernels.
 
 =head2 Rework to switch/case "common script" with symlink architecture
 
-There's lots of examples of this, basically the switch statement
-uses "basename" to determine the entry point and executes the
-according bash functions. Tidy, puts everything in one file.
+  There's lots of examples of this, basically the switch statement
+  uses "basename" to determine the entry point and executes the
+  according bash functions. Tidy, puts everything in one file.
+
+=head2 ctags autoprobing
+
+  bin/OpenGrok seems to be messing up here and determining the
+  wrong path for this. I may setup an "alternatives" for ctags
+  or modify the installer and carry yet another patch.
+
+=head2 create project interface to add|remove|update source trees
+
+  If I keep the defaults of "deploy", this is doable. That means
+  every dir in src/ is considered it's own project. I can leave out
+  super projects for now and concentrate on the CRUD cycle for launchpad
+  branches only. That doesn't mean you couldn't use this for any other
+  VCS, it's just that at least initially it will get lp/bzr projects up
+  faster than configuring it yourself. Which really isn't a big deal,
+  ssh in, cd /var/opengrok/src && bzr branch lp:foo. Add additional
+  VCS as needed.
+
+=head2 debug inital index creation crash
+
+  This is really annoying, we go out of our way to disable history
+  annotation but when an index is first built, and only then, opengrok
+  tries to build one, and fails. The current workaround is to run
+  *update* twice. I don't even check for return codes and I should.
 
 =head2 Create hook to integrate with existing tomcat6 service
 
-I've looked the website relation for tomcat6 and the integration
-of additional services isn't very clear to me. I also hesitate
-to co-op this with a general servlet engine as the IO/CPU demands
-will easily starve out everything else.
+  I've looked the website relation for tomcat6 and the integration
+  of additional services isn't very clear to me. I also hesitate
+  to co-op this with a general servlet engine as the IO/CPU demands
+  will easily starve out everything else. It's also wierd that there's
+  no *jsp* or *java-servlet* interface, the tomcat charms only provide
+  http.
 
-=head2 Parameterize opengrok config at runtime
-
-A prerequisite to this is actually understanding the configuration.xml
-syntax, the documentation could stand to be much improved on the subject.
-It's currently configured as a single project.
+  Since a subordinate charm is basically omitting the installation of
+  tomcat it should be easy to make this charm both a standalone and
+  subordinate capable charm.
 
 =head2 Attach and manage persistent storage for src & data
 
-Runtime config parameterization is a prerequisite to this. Ideally I'd
-like to be able to have a project per volume and stitch it all together
-dynamically.
+  Whatever it is this must be fast, NFS won't cut it. May need
+  to be aware of configuration parameteriztion too.
+
+=head2 Parameterize opengrok configuration at deployment
+
+  We may leave this alone for a while seeing that opengrok generates
+  a configuration.xml and deposits it in /var/opengrok/etc. Should this
+  charm build an interface to adding/removing/updating projects, paremetizing
+  the root configuration in addition to that would make for a complex
+  implementation for sure.
 
 =cut
 
