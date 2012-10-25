@@ -2,34 +2,16 @@
 # vim:ts=2:sw=2:et:filetype=sh:
 set -eux #-x for verbose logging to juju debug-log
 
+# Deployment details, shared with other processes
+# '|' isn't a valid POSIX path var so perfect delimiter
+sed -i -e "s|%%PWD%%|${PWD}|g" inc/common
+. inc/common
+
 CWD=$(dirname $0)
 
 install_tomcat6() {
   apt-get -qq update
   apt-get -qqy install tomcat6
-}
-
-install_opengrok_update_cronjob() {
-  juju-log "Installing daily index update cron job"
-  # unconditionally update this script
-  rm -f /etc/cron.daily/opengrok
-  tee /etc/cron.daily/opengrok << EOF
-#!/bin/sh
-cd /opt/opengrok/bin && ./OpenGrok update
-EOF
-  chmod +x /etc/cron.daily/opengrok
-}
-
-create_initial_index() {
-  juju-log "Opengrok indexing (this could take a while)..."
-  # XXX for whatever reason, the first time an index is built opengrok
-  # insist's on building an index for the history, which always fails.
-  # On subsequent runs however, it honors the lack of a -H switch. So
-  # the workaround for setting up new projects is to run update twice.
-  . /etc/cron.daily/opengrok || :
-  # XXX report $?
-  OPENGROK_VERBOSE=1 . /etc/cron.daily/opengrok
-  juju-log "Opengrok indexing complete"
 }
 
 install_opengrok() {
@@ -43,10 +25,6 @@ install_opengrok() {
 
   local tarball=$(echo ${grok_jar} | perl -ne '@F = split("/",$_); print("$F[-1]");')
   local basedir=$(echo ${tarball}  | perl -ne '@F = split(".tar.gz",$_); print("$F[0]");')
-
-  local grok_src=/var/opengrok/src
-  local grok_data=/var/opengrok/data
-  local grok_etc=/var/opengrok/etc
 
   juju-log "Preparing to install OpenGrok"
   add-apt-repository -y ppa:charmers/charm-helpers
@@ -72,15 +50,16 @@ install_opengrok() {
   juju-log "Creating opengrok src and data store"
   mkdir -p ${grok_src}
 
-  # if data/ already exists, wipe it out unconditionally (for now)
-  # index could be corrupted and we wish to ensure the service
-  # is in the best possible state to run the first time.
+  # XXX on upgrade, conditionally destroy this, config option 
   [ -d "${grok_data}" ] && rm -rf ${grok_data}
   mkdir -p ${grok_data}
 
-  # Same goes for local configuration
+  
+  # XXX on upgrade, conditionally destroy this, config option 
   [ -d "${grok_etc}" ] && rm -rf ${grok_etc}
   mkdir -p ${grok_etc}
+
+  opengrok_install_cronjob
 }
 
 start_opengrok() {

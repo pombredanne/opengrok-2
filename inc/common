@@ -1,0 +1,49 @@
+#!/bin/bash
+# vim:ts=2:sw=2:et:ft=sh:
+# Remember to preface every function call here with an appropriate namespace.
+# Also remember to pull JUJU_ vars as needed to engage agents
+
+# updated using sed from opengrok_common
+# This is idempotent since upgrade only increments the revision # not the
+# unit number, that only goes up during install. The sed script in opengrok_common
+# will execute harmlessly
+CHARM_ROOT=%%PWD%%
+
+grok_src=/var/opengrok/src
+grok_data=/var/opengrok/data
+grok_etc=/var/opengrok/etc
+
+# check fails if var is unset or empty
+if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
+then
+  LOGIT='juju-log'
+else
+  LOGIT='logger -p user.info -t opengrok'
+fi
+
+echo "charm root: ${CHARM_ROOT}"
+
+opengrok_install_cronjob() {
+  ${LOGIT} "Installing daily index update cron job"
+  # unconditionally update this script
+  rm -f /etc/cron.daily/opengrok
+  tee /etc/cron.daily/opengrok << EOF
+#!/bin/sh
+. ${CHARM_ROOT}/inc/common
+opengrok_create_initial_index
+EOF
+  chmod +x /etc/cron.daily/opengrok
+}
+
+opengrok_create_initial_index() {
+  ${LOGIT} "Opengrok indexing (this could take a while)..."
+  # XXX for whatever reason, the first time an index is built opengrok
+  # insist's on building an index for the history, which always fails.
+  # On subsequent runs however, it honors the lack of a -H switch. So
+  # the workaround for setting up new projects is to run update twice.
+  cd /opt/opengrok/bin && ./OpenGrok update
+  if (( $? == 0 )); then run_one='did'; else run_one='did not'; fi
+  ${LOGIT} "Opengrok inital pass index ${run_one} complete"
+  cd /opt/opengrok/bin && OPENGROK_VERBOSE=1 ./OpenGrok update
+  ${LOGIT} "Opengrok indexing complete"
+}
