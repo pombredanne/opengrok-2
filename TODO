@@ -9,18 +9,6 @@
   essentially has O(N^2) when you really add several large projects
   to it, like say several linux kernels.
 
-=head2 Rework to switch/case "common script" with symlink architecture
-
-  There's lots of examples of this, basically the switch statement
-  uses "basename" to determine the entry point and executes the
-  according bash functions. Tidy, puts everything in one file.
-
-=head2 ctags autoprobing
-
-  bin/OpenGrok seems to be messing up here and determining the
-  wrong path for this. I may setup an "alternatives" for ctags
-  or modify the installer and carry yet another patch.
-
 =head2 create project interface to add|remove|update source trees
 
   If I keep the defaults of "deploy", this is doable. That means
