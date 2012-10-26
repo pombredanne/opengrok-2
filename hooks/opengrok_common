@@ -5,6 +5,9 @@ set -eux #-x for verbose logging to juju debug-log
 # Deployment details, shared with other processes
 # '|' isn't a valid POSIX path var so perfect delimiter
 sed -i -e "s|%%PWD%%|${PWD}|g" inc/common
+sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_configuration
+sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_index
+
 . inc/common
 
 CWD=$(dirname $0)
@@ -42,24 +45,39 @@ install_opengrok() {
   # update symlink to the latest
   ln -sf /opt/${basedir} /opt/opengrok
 
+  juju-log "Creating opengrok src and data store"
+  mkdir -p ${grok_src}
+
+  if [[ "$(basename $0)" != "upgrade-charm" ]]
+  then
+    rm   -rf ${grok_data} && mkdir -p ${grok_data}
+  else
+    juju-log "preserving ${grok_data} on charm-upgrade"
+  fi
+
+  # XXX on upgrade, conditionally destroy this, config option
+  if [[ "$(basename $0)" != "upgrade-charm" ]]
+  then
+    rm   -rf ${grok_etc} && mkdir -p ${grok_etc}
+  else
+    juju-log "preserving ${grok_etc} on charm-upgrade"
+  fi
+
   juju-log "Deploying opengrok war to servlet root"
   # deploy script scans for common servlets and had hardcoded paths
   # should you use tomcat7 this will probably not work.
   cd /opt/opengrok/bin && ./OpenGrok deploy
 
-  juju-log "Creating opengrok src and data store"
-  mkdir -p ${grok_src}
+  # workaround the history index heap OOM bug by regenerating the
+  # config file without these directives, call this function everytime
+  # a new project is added to ${grok_src}
+  opengrok_update_project_configuration
 
-  # XXX on upgrade, conditionally destroy this, config option 
-  [ -d "${grok_data}" ] && rm -rf ${grok_data}
-  mkdir -p ${grok_data}
+  opengrok_install_upstart_index_job
 
-  
-  # XXX on upgrade, conditionally destroy this, config option 
-  [ -d "${grok_etc}" ] && rm -rf ${grok_etc}
-  mkdir -p ${grok_etc}
-
+  # The cron job runs the upstart job synchronously
   opengrok_install_cronjob
+
 }
 
 start_opengrok() {

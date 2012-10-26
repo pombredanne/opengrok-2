@@ -1,0 +1,4 @@
+#!/bin/bash
+
+. %%PWD%%/inc/common
+opengrok_update_project_configuration

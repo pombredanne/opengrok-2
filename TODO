@@ -20,13 +20,6 @@
   ssh in, cd /var/opengrok/src && bzr branch lp:foo. Add additional
   VCS as needed.
 
-=head2 debug inital index creation crash
-
-  This is really annoying, we go out of our way to disable history
-  annotation but when an index is first built, and only then, opengrok
-  tries to build one, and fails. The current workaround is to run
-  *update* twice. I don't even check for return codes and I should.
-
 =head2 Create hook to integrate with existing tomcat6 service
 
   I've looked the website relation for tomcat6 and the integration

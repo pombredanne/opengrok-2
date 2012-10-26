@@ -2,7 +2,9 @@
 # vim:ts=2:sw=2:et:ft=sh:
 # Remember to preface every function call here with an appropriate namespace.
 # Also remember to pull JUJU_ vars as needed to engage agents
-
+#
+# XXX perhaps I should deploy this as .tmpl?
+#
 # updated using sed from opengrok_common
 # This is idempotent since upgrade only increments the revision # not the
 # unit number, that only goes up during install. The sed script in opengrok_common
@@ -12,6 +14,9 @@ CHARM_ROOT=%%PWD%%
 grok_src=/var/opengrok/src
 grok_data=/var/opengrok/data
 grok_etc=/var/opengrok/etc
+# XXX consider adjusting JVM heap size dynamically to cloud instance
+grok_java_heap=-Xmx2048m
+grok_ctags=$(which ctags)
 
 # check fails if var is unset or empty
 if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
@@ -21,29 +26,97 @@ else
   LOGIT='logger -p user.info -t opengrok'
 fi
 
-echo "charm root: ${CHARM_ROOT}"
-
 opengrok_install_cronjob() {
+  local job=/etc/cron.daily/opengrok
   ${LOGIT} "Installing daily index update cron job"
-  # unconditionally update this script
-  rm -f /etc/cron.daily/opengrok
-  tee /etc/cron.daily/opengrok << EOF
+  rm -f ${job}
+  tee ${job} << EOF
 #!/bin/sh
-. ${CHARM_ROOT}/inc/common
-opengrok_create_initial_index
+# We run synchronously here so that the runtime of this infrequent
+# cronjob is accounted for.
+initctl emit opengrok-index
 EOF
-  chmod +x /etc/cron.daily/opengrok
+  chmod +x ${job}
 }
 
-opengrok_create_initial_index() {
+opengrok_install_upstart_index_job() {
+  local job=/etc/init/opengrok-index.conf
+  ${LOGIT} "Installing opengrok-index upstart task"
+  rm -f ${job}
+  tee ${job} << EOF
+# opengrok-index - Kickoff index service for opengrok source code xref
+#
+# This helper runs the opengrok indexing service.
+#
+# Recommened invocation: initctl emit --no-wait opengrok-index
+#
+# As indexing can take anywhere from 5 mins to several hours depending
+# on how many projects are present and their size.
+
+description "Update opengrok indexes"
+
+start on opengrok-index
+
+task
+
+script
+  exec %%PWD%%/scripts/opengrok_update_configuration
+  exec %%PWD%%/scripts/opengrok_update_index
+end script
+
+# vim:ts=4:sw=4:et:
+EOF
+}
+
+opengrok_update_index() {
+  local args='-v -S -r on'
   ${LOGIT} "Opengrok indexing (this could take a while)..."
-  # XXX for whatever reason, the first time an index is built opengrok
-  # insist's on building an index for the history, which always fails.
-  # On subsequent runs however, it honors the lack of a -H switch. So
-  # the workaround for setting up new projects is to run update twice.
-  cd /opt/opengrok/bin && ./OpenGrok update
-  if (( $? == 0 )); then run_one='did'; else run_one='did not'; fi
-  ${LOGIT} "Opengrok inital pass index ${run_one} complete"
-  cd /opt/opengrok/bin && OPENGROK_VERBOSE=1 ./OpenGrok update
-  ${LOGIT} "Opengrok indexing complete"
+
+  for (( i=1; i <= 3; i++ ))
+  do
+    ${LOGIT} "Opengrok index pass ${i} starting"
+
+    # For the sake debugging and determinism, we're invoking this
+    # directly.
+    cd /opt/opengrok/bin && java ${grok_java_heap} \
+      -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+      -jar /opt/opengrok/bin/../lib/opengrok.jar \
+       ${args} \
+      -c ${grok_ctags} \
+      -a on \
+      -W ${grok_etc}/configuration.xml \
+      -U localhost:2424 \
+      -s ${grok_src} \
+      -d ${grok_data}
+
+    if (( $? == 0 ))
+    then
+      ${LOGIT} "Opengrok index pass ${i} complete"
+      break
+    else
+      ${LOGIT} "Opengrok index pass ${i} failed, check syslog for java \
+        'Out of memory' process being killed."
+      # Can't hurt, really have no other recourse here
+      sleep 10s
+    fi
+  done
+}
+
+opengrok_update_project_configuration() {
+  # We need to ensure that history building is unset
+  # -P updates the project list and -n ensures that no indexing occurs
+  local args=-Pn
+
+  rm -f ${grok_etc}/configuration.xml
+
+  cd /opt/opengrok/bin && java ${grok_java_heap} \
+    -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+    -jar /opt/opengrok/bin/../lib/opengrok.jar \
+     ${args} \
+    -c ${grok_ctags} \
+    -a on \
+    -W ${grok_etc}/configuration.xml \
+    -U localhost:2424 \
+    -s ${grok_src} \
+    -d ${grok_data}
 }
