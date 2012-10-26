@@ -21,25 +21,37 @@ The opengrok charm uses a standalone tomcat6 instance and is very space,
 I/O, and CPU intensive. It is not recommended to co-op this service with
 an existing servlet engine unless you really know what you're doing.
 
-Currently opengrok is setup as a single project. Source code to be indexed
-should be pushed /var/opengrok/src and then update the index by:
+To configure:
 
-    cd /opt/opengrok/bin && ./OpenGrok update
+    juju set opengrok og-content=lp:juju
 
-This takes a while and should probably be setup as a nighly cron job
+Only lp repos are supported at this time. You can add as many repos as
+you wish though you're currently limited to adding them one at a time.
+The indexer will automatically kick off to update the project and database.
 
-By default a branch of the latest juju source is downloaded and indexed
-for demonstration purposes.
+To check on the status of the indexer
+
+    juju ssh opengrok/INSTANCE_ID
+    $ sudo initctl status opengrok-index
+    
+    opengrok-index start/running, process 10090
+
+A daily cronjob is installed to update the indexes.
 
 Known Issues:
 
-A bug was discovered with the history index building and has been disabled
-in the meanwhile by this charm. Tracked upstream by:
+ * A bug was discovered with the history index building and has been disabled
+   in the meanwhile by this charm. Tracked upstream by:
 
     http://defect.opensolaris.org/bz/show_bug.cgi?id=19245
 
     NOTE: a dedicated opensolaris login is required to update bugs. OpenID is
           unsupported.
+
+ * Updating existing sandboxes: currently this is a manual affair though if you're
+ so inclined you can run "juju set" again which will update an existing sandbox
+ and kickoff a rebuild. Later versionn will walk project root, pull updates automatically,
+ and signal the index to rebuild.
 
 Links:
 

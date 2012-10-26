@@ -1,6 +1,6 @@
 #!/bin/bash
 # vim:ts=2:sw=2:et:filetype=sh:
-set -eux #-x for verbose logging to juju debug-log
+set -eu #-x for verbose logging to juju debug-log
 
 # Deployment details, shared with other processes
 # '|' isn't a valid POSIX path var so perfect delimiter
@@ -98,6 +98,38 @@ restart_opengrok() {
   service tomcat6 status && service tomcat6 restart || service tomcat6 start
 }
 
+configure_opengrok() {
+  # Can only parse one at a time but you can call this multiple
+  # times to incrementally build up your source repos
+  local og_content=$(config-get og-content)
+
+  if echo ${og_content} | grep -q ^lp:; then
+    local repo_name=$(echo ${og_content} | perl -ne '@F = split(":",$_); print("$F[-1]");')
+  else
+    juju-log "No lp branch provided, failing safe"
+    return 0
+  fi
+
+  # Need to handle slashified repo names
+  if echo ${og_content} | grep -q '/'; then
+    repo_name=$(echo ${og_content} | perl -ne '@F = split("/",$_); print("$F[-1]");')
+  fi
+
+  if [ -d "${grok_src}/${repo_name}" ]; then
+    # XXX config option to always overwrite
+    juju-log "Updating existing branch ${og_content}"
+    cd "${grok_src}/${repo_name}" && bzr update
+  else
+    juju-log "Checking out new branch ${og_content}"
+    bzr branch ${og_content} "${grok_src}/${repo_name}"
+  fi
+
+  # update config and update index
+
+  juju-log "Initiate asynchronous index build"
+  initctl emit --no-wait opengrok-index
+}
+
 # Actual processing
 COMMAND=$(basename $0)
 
@@ -115,12 +147,15 @@ case $COMMAND in
     stop_opengrok
     ;;
   config-changed)
-    # XXX this is probably where we'll kick off index updates from the "project list" changing
+    configure_opengrok
     ;;
   upgrade-charm)
     install_opengrok
     restart_opengrok 
     juju-log "Opengrok upgraded"
+    ;;
+  website-relation-joined)
+    relation-set port=8080 hostname=`unit-get private-address`
     ;;
   *)
     juju-log "Command not recognized"

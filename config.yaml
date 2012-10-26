@@ -1,0 +1,7 @@
+# vim:ts=2:sw=2:et:ft=yaml:
+options:
+  og-content:
+    default: ""
+    type: string
+    description: |
+      List of launchpad only repositories (lp:) to be branched and indexed by opengrok.
