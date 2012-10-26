@@ -16,7 +16,7 @@ grok_data=/var/opengrok/data
 grok_etc=/var/opengrok/etc
 # XXX consider adjusting JVM heap size dynamically to cloud instance
 grok_java_heap=-Xmx2048m
-grok_ctags=$(which ctags)
+grok_ctags=/usr/bin/ctags
 
 # check fails if var is unset or empty
 if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
@@ -60,8 +60,8 @@ start on opengrok-index
 task
 
 script
-  exec %%PWD%%/scripts/opengrok_update_configuration
-  exec %%PWD%%/scripts/opengrok_update_index
+  %%PWD%%/scripts/opengrok_update_configuration
+  %%PWD%%/scripts/opengrok_update_index
 end script
 
 # vim:ts=4:sw=4:et:
@@ -84,7 +84,7 @@ opengrok_update_index() {
        ${args} \
       -c ${grok_ctags} \
       -a on \
-      -W ${grok_etc}/configuration.xml \
+      -R ${grok_etc}/configuration.xml \
       -U localhost:2424 \
       -s ${grok_src} \
       -d ${grok_data}
