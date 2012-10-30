@@ -11,14 +11,14 @@
 
 =head2 create project interface to add|remove|update source trees
 
-  If I keep the defaults of "deploy", this is doable. That means
-  every dir in src/ is considered it's own project. I can leave out
-  super projects for now and concentrate on the CRUD cycle for launchpad
-  branches only. That doesn't mean you couldn't use this for any other
-  VCS, it's just that at least initially it will get lp/bzr projects up
-  faster than configuring it yourself. Which really isn't a big deal,
-  ssh in, cd /var/opengrok/src && bzr branch lp:foo. Add additional
-  VCS as needed.
+  Thus far, the "C" and "U" of CRUD is complete. Implementing the
+  rest is a real challenge. I may be exceeding the design contract
+  for juju config state. I don't like it that if this fails the
+  entire charm reports failed and the user would be forced to
+  use debug consoles and run individual hooks to discover the fault,
+  which may be transiant. For example you could have a perfectly
+  good lp repo but the attempt to pull from lp failed for reasons
+  outside of your control.
 
 =head2 Create hook to integrate with existing tomcat6 service
 
