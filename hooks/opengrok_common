@@ -2,19 +2,28 @@
 # vim:ts=2:sw=2:et:filetype=sh:
 set -eu #-x for verbose logging to juju debug-log
 
-# Deployment details, shared with other processes
-# '|' isn't a valid POSIX path var so perfect delimiter
-sed -i -e "s|%%PWD%%|${PWD}|g" inc/common
-sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_configuration
-sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_index
-
-. inc/common
-
 CWD=$(dirname $0)
+
+TMPL=${CWD}/../templates
+INC=${CWD}/../inc
+SCRIPTS=${CWD}/../scripts
 
 install_tomcat6() {
   apt-get -qq update
   apt-get -qqy install tomcat6
+}
+
+compile_templates() {
+  juju-log "Compiling templates"
+  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/common.tmpl > ${INC}/common
+  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/opengrok_update_configuration.tmpl \
+    > ${SCRIPTS}/opengrok_update_configuration 
+  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/opengrok_update_index.tmpl \
+    > ${SCRIPTS}/opengrok_update_index
+
+  chmod +x ${INC}/common \
+           ${SCRIPTS}/opengrok_update_configuration \
+           ${SCRIPTS}/opengrok_update_index
 }
 
 install_opengrok() {
@@ -34,6 +43,9 @@ install_opengrok() {
   apt-get -qq update
   apt-get -qqy install exuberant-ctags bzr charm-helper-sh
 
+  # shared definitions
+  . inc/common
+
   # loading helper library
   . /usr/share/charm-helper/sh/net.sh
 
@@ -50,15 +62,14 @@ install_opengrok() {
 
   if [[ "$(basename $0)" != "upgrade-charm" ]]
   then
-    rm   -rf ${grok_data} && mkdir -p ${grok_data}
+    rm -rf ${grok_data} && mkdir -p ${grok_data}
   else
     juju-log "preserving ${grok_data} on charm-upgrade"
   fi
 
-  # XXX on upgrade, conditionally destroy this, config option
   if [[ "$(basename $0)" != "upgrade-charm" ]]
   then
-    rm   -rf ${grok_etc} && mkdir -p ${grok_etc}
+    rm -rf ${grok_etc} && mkdir -p ${grok_etc}
   else
     juju-log "preserving ${grok_etc} on charm-upgrade"
   fi
@@ -103,6 +114,9 @@ configure_opengrok() {
   # times to incrementally build up your source repos
   local og_content=$(config-get og-content)
 
+  # shared definitions
+  . inc/common
+
   if echo ${og_content} | grep -q ^lp:; then
     local repo_name=$(echo ${og_content} | perl -ne '@F = split(":",$_); print("$F[-1]");')
   else
@@ -135,7 +149,8 @@ COMMAND=$(basename $0)
 
 case $COMMAND in
   install)
-    install_tomcat6
+    [[ -d /usr/share/tomcat6 ]] || install_tomcat6
+    compile_templates
     install_opengrok
     restart_opengrok
     juju-log "Opengrok installed, expose service and visit http://HOSTIP:8080/source"
@@ -150,6 +165,7 @@ case $COMMAND in
     configure_opengrok
     ;;
   upgrade-charm)
+    compile_templates
     install_opengrok
     restart_opengrok 
     juju-log "Opengrok upgraded"

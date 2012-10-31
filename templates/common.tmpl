@@ -1,15 +1,8 @@
 #!/bin/bash
 # vim:ts=2:sw=2:et:ft=sh:
-# Remember to preface every function call here with an appropriate namespace.
-# Also remember to pull JUJU_ vars as needed to engage agents
-#
-# XXX perhaps I should deploy this as .tmpl?
-#
-# updated using sed from opengrok_common
-# This is idempotent since upgrade only increments the revision # not the
-# unit number, that only goes up during install. The sed script in opengrok_common
-# will execute harmlessly
+# %%FOO%% are substituted during install
 CHARM_ROOT=%%PWD%%
+export CHARM_ROOT
 
 grok_src=/var/opengrok/src
 grok_data=/var/opengrok/data
