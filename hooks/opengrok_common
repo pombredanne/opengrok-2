@@ -13,6 +13,22 @@ install_tomcat6() {
   apt-get -qqy install tomcat6
 }
 
+install_debug_helper() {
+  # make vim configuration sane for onsite editing
+  cat > /etc/vim/vimrc.local <<\EOF
+set bg=dark
+if exists("+modelines") 
+     " the following is required because of SuSE's paranoid /etc/vimrc 
+     " and to force 'modeline' on even for root in Vim 7.0.237 and later 
+     set modeline modelines=5 
+     " the following disables a dangerous modeline in one helpfile 
+     if has ('autocmd') 
+         au BufReadPost ada.txt setl nomodeline ft=help 
+     endif 
+endif
+EOF
+}
+
 compile_templates() {
   juju-log "Compiling templates"
   sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/common.tmpl > ${INC}/common
@@ -41,13 +57,15 @@ install_opengrok() {
   juju-log "Preparing to install OpenGrok"
   add-apt-repository -y ppa:charmers/charm-helpers
   apt-get -qq update
-  apt-get -qqy install exuberant-ctags bzr charm-helper-sh
+  apt-get -qqy install exuberant-ctags bzr git charm-helper-sh
 
   # shared definitions
   . inc/common
 
   # loading helper library
   . /usr/share/charm-helper/sh/net.sh
+
+  install_debug_helper
 
   juju-log "Installing ${basedir} JAR from tarball"
   local templocation=$(ch_get_file ${grok_jar} ${tarball_sha256})
@@ -110,12 +128,12 @@ restart_opengrok() {
 }
 
 configure_opengrok() {
-  # Can only parse one at a time but you can call this multiple
-  # times to incrementally build up your source repos
-  local og_content=$(config-get og-content)
-
   # shared definitions
   . inc/common
+
+  # Can only parse one at a time but you can call this multiple
+  # times to incrementally build up your source repos
+  local og_content=$(config-get json og-content)
 
   if echo ${og_content} | grep -q ^lp:; then
     local repo_name=$(echo ${og_content} | perl -ne '@F = split(":",$_); print("$F[-1]");')
