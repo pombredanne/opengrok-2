@@ -180,7 +180,10 @@ case $COMMAND in
     stop_opengrok
     ;;
   config-changed)
-    configure_opengrok
+    . inc/common
+    # Unless you have a better way to suck in ENVIRONMENT into a
+    # python script
+    hooks/py-config-changed
     ;;
   upgrade-charm)
     compile_templates

@@ -11,6 +11,8 @@ grok_etc=/var/opengrok/etc
 grok_java_heap=-Xmx2048m
 grok_ctags=/usr/bin/ctags
 
+export GROK_SRC=${grok_src}
+
 # check fails if var is unset or empty
 if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
 then
