@@ -4,6 +4,7 @@
 from __future__ import print_function
 import os, sys, re, json
 from os.path import dirname, basename, abspath
+import subprocess
 from subprocess import Popen, PIPE
 from tempfile import TemporaryFile as mkstemp
 
@@ -19,11 +20,11 @@ def checkout_bzr(url, path):
   Popen("bzr branch {0} {1}".format(url, path), shell=True).communicate()
 
 def update_index():
-  Popen("initctl emit --no-wait opengrok-index", shell=True).communicate()
+  Popen("initctl start opengrok-index", shell=True).communicate()
 
 def configure_opengrok():
   scratch = mkstemp(mode='rw+b')
-  task = Popen("config-get og-content", stdout=scratch,
+  task = Popen("config-get og_content", stdout=scratch,
       shell=True).communicate()
 
   scratch.seek(0) # must rewind before we read again
@@ -51,7 +52,9 @@ def configure_opengrok():
       url_proto='git'
 
     try:
-      project = abspath(os.path.join(os.environ['GROK_SRC'], repo['alias']))
+      cmd = [ 'config-get', 'grok_src' ]
+      grok_src = subprocess.check_output(cmd).strip()
+      project = abspath(os.path.join(grok_src, repo['alias']))
       
       if os.path.exists(project):
         # consider always overwrite flag
@@ -66,6 +69,8 @@ def configure_opengrok():
 
     except KeyError:
       juju_log("env key not found, was inc/common loaded?")
+
+  update_index()
 
   return 0
 try:

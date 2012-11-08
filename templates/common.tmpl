@@ -1,17 +1,10 @@
 #!/bin/bash
 # vim:ts=2:sw=2:et:ft=sh:
-# %%FOO%% are substituted during install
-CHARM_ROOT=%%PWD%%
-export CHARM_ROOT
 
-grok_src=/var/opengrok/src
-grok_data=/var/opengrok/data
-grok_etc=/var/opengrok/etc
-# XXX consider adjusting JVM heap size dynamically to cloud instance
-grok_java_heap=-Xmx2048m
+deploy=/opt/opengrok-charm
+grok_etc=/etc/opengrok
+grok_java_heap='-Xmx2048m'
 grok_ctags=/usr/bin/ctags
-
-export GROK_SRC=${grok_src}
 
 # check fails if var is unset or empty
 if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
@@ -55,8 +48,9 @@ start on opengrok-index
 task
 
 script
-  %%PWD%%/scripts/opengrok_update_configuration
-  %%PWD%%/scripts/opengrok_update_index
+  . /opt/opengrok-charm/inc/common
+  ${deploy}/bin/opengrok_update_configuration
+  ${deploy}/bin/opengrok_update_index
 end script
 
 # vim:ts=4:sw=4:et:
@@ -73,16 +67,13 @@ opengrok_update_index() {
 
     # For the sake debugging and determinism, we're invoking this
     # directly.
-    cd /opt/opengrok/bin && java ${grok_java_heap} \
+    cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
       -Djava.util.logging.config.file=/var/opengrok/logging.properties \
-      -jar /opt/opengrok/bin/../lib/opengrok.jar \
+      -jar ${deploy}/bin/../lib/opengrok.jar \
        ${args} \
-      -c ${grok_ctags} \
       -a on \
       -R ${grok_etc}/configuration.xml \
-      -U localhost:2424 \
-      -s ${grok_src} \
-      -d ${grok_data}
+      -U localhost:2424
 
     if (( $? == 0 ))
     then
@@ -102,16 +93,12 @@ opengrok_update_project_configuration() {
   # -P updates the project list and -n ensures that no indexing occurs
   local args=-Pn
 
-  rm -f ${grok_etc}/configuration.xml
-
-  cd /opt/opengrok/bin && java ${grok_java_heap} \
+  cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
     -Djava.util.logging.config.file=/var/opengrok/logging.properties \
-    -jar /opt/opengrok/bin/../lib/opengrok.jar \
+    -jar ${deploy}/opengrok/bin/../lib/opengrok.jar \
      ${args} \
-    -c ${grok_ctags} \
     -a on \
+    -R ${grok_etc}/configuration.xml \
     -W ${grok_etc}/configuration.xml \
-    -U localhost:2424 \
-    -s ${grok_src} \
-    -d ${grok_data}
+    -U localhost:2424
 }

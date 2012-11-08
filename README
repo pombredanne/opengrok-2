@@ -22,8 +22,8 @@ I/O, and CPU intensive. It is not recommended to co-op this service with
 an existing servlet engine unless you really know what you're doing.
 
 To configure:
-
-    juju set opengrok og-content=lp:juju
+    XXX update with JSON format, aliases are required!
+    juju set opengrok og_content=lp:juju
 
 Only lp repos are supported at this time. You can add as many repos as
 you wish though you're currently limited to adding them one at a time.
@@ -31,10 +31,11 @@ The indexer will automatically kick off to update the project and database.
 
 To check on the status of the indexer
 
-    juju ssh opengrok/INSTANCE_ID
-    $ sudo initctl status opengrok-index
+    juju ssh opengrok/INSTANCE_ID initctl status opengrok-index
     
     opengrok-index start/running, process 10090
+
+XXX note concerning synchronous indexing
 
 A daily cronjob is installed to update the indexes.
 
@@ -48,11 +49,8 @@ Known Issues:
     NOTE: a dedicated opensolaris login is required to update bugs. OpenID is
           unsupported.
 
- * Updating existing sandboxes: currently this is a manual affair though if you're
- so inclined you can run "juju set" again which will update an existing sandbox
- and kickoff a rebuild. Later versionn will walk project root, pull updates automatically,
- and signal the index to rebuild.
-
+ * Updating existing sandboxes: currently this is a manual affair, eventually a
+   cron job will exist that will walk sandboxes, pull them and kickoff an update
 Links:
 
 - Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/

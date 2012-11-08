@@ -4,9 +4,10 @@ set -eu #-x for verbose logging to juju debug-log
 
 CWD=$(dirname $0)
 
-TMPL=${CWD}/../templates
-INC=${CWD}/../inc
-SCRIPTS=${CWD}/../scripts
+DEPLOY=/opt/opengrok-charm
+TMPL=${CHARM_DIR}/templates
+INC=${DEPLOY}/inc
+BIN=${DEPLOY}/bin
 
 install_tomcat6() {
   apt-get -qq update
@@ -31,15 +32,9 @@ EOF
 
 compile_templates() {
   juju-log "Compiling templates"
-  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/common.tmpl > ${INC}/common
-  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/opengrok_update_configuration.tmpl \
-    > ${SCRIPTS}/opengrok_update_configuration 
-  sed -e "s|%%PWD%%|${PWD}|g" ${TMPL}/opengrok_update_index.tmpl \
-    > ${SCRIPTS}/opengrok_update_index
 
-  chmod +x ${INC}/common \
-           ${SCRIPTS}/opengrok_update_configuration \
-           ${SCRIPTS}/opengrok_update_index
+  cheetah compile  ${TMPL}/configuration_xml.tmpl
+  chmod a+x ${TMPL}/*.py
 }
 
 install_opengrok() {
@@ -57,10 +52,14 @@ install_opengrok() {
   juju-log "Preparing to install OpenGrok"
   add-apt-repository -y ppa:charmers/charm-helpers
   apt-get -qq update
-  apt-get -qqy install exuberant-ctags bzr git charm-helper-sh
+  apt-get -qqy install exuberant-ctags bzr git charm-helper-sh python-cheetah
 
-  # shared definitions
-  . inc/common
+  rm -rf ${DEPLOY} ${INC} ${BIN} && mkdir -p ${DEPLOY} ${INC} ${BIN}
+  compile_templates
+
+  # install and load shared definitions
+  install -m 755 -o root -g root ${TMPL}/common.tmpl ${INC}/common
+  . ${INC}/common
 
   # loading helper library
   . /usr/share/charm-helper/sh/net.sh
@@ -69,11 +68,13 @@ install_opengrok() {
 
   juju-log "Installing ${basedir} JAR from tarball"
   local templocation=$(ch_get_file ${grok_jar} ${tarball_sha256})
-  rm -rf /opt/opengrok/${basedir}
-  tar xzf ${templocation} -C /opt
+  tar xzf ${templocation} -C ${DEPLOY}
 
   # update symlink to the latest
-  ln -sf /opt/${basedir} /opt/opengrok
+  ln -sf ${DEPLOY}/${basedir} ${DEPLOY}/opengrok
+
+  local grok_src=$(config-get grok_src)
+  local grok_data=$(config-get grok_data)
 
   juju-log "Creating opengrok src and data store"
   mkdir -p ${grok_src}
@@ -95,18 +96,24 @@ install_opengrok() {
   juju-log "Deploying opengrok war to servlet root"
   # deploy script scans for common servlets and had hardcoded paths
   # should you use tomcat7 this will probably not work.
-  cd /opt/opengrok/bin && ./OpenGrok deploy
+  rm -rf /var/lib/tomcat6/webapps/source
+  cd ${DEPLOY}/opengrok/bin && ./OpenGrok deploy
 
-  # workaround the history index heap OOM bug by regenerating the
-  # config file without these directives, call this function everytime
-  # a new project is added to ${grok_src}
+  # Lay down baseline configuration
+  ${TMPL}/configuration_xml.py > ${grok_etc}/configuration.xml
+
+  # install helper scripts
+  install -m 755 -o root -g root ${TMPL}/opengrok_update_configuration.tmpl \
+    ${BIN}/opengrok_update_configuration
+  install -m 755 -o root -g root ${TMPL}/opengrok_update_index.tmpl \
+    ${BIN}/opengrok_update_index
+
   opengrok_update_project_configuration
 
   opengrok_install_upstart_index_job
 
   # The cron job runs the upstart job synchronously
   opengrok_install_cronjob
-
 }
 
 start_opengrok() {
@@ -127,48 +134,12 @@ restart_opengrok() {
   service tomcat6 status && service tomcat6 restart || service tomcat6 start
 }
 
-configure_opengrok() {
-  # shared definitions
-  . inc/common
-
-  # Can only parse one at a time but you can call this multiple
-  # times to incrementally build up your source repos
-  local og_content=$(config-get json og-content)
-
-  if echo ${og_content} | grep -q ^lp:; then
-    local repo_name=$(echo ${og_content} | perl -ne '@F = split(":",$_); print("$F[-1]");')
-  else
-    juju-log "No lp branch provided, failing safe"
-    return 0
-  fi
-
-  # Need to handle slashified repo names
-  if echo ${og_content} | grep -q '/'; then
-    repo_name=$(echo ${og_content} | perl -ne '@F = split("/",$_); print("$F[-1]");')
-  fi
-
-  if [ -d "${grok_src}/${repo_name}" ]; then
-    # XXX config option to always overwrite
-    juju-log "Updating existing branch ${og_content}"
-    cd "${grok_src}/${repo_name}" && bzr update
-  else
-    juju-log "Checking out new branch ${og_content}"
-    bzr branch ${og_content} "${grok_src}/${repo_name}"
-  fi
-
-  # update config and update index
-
-  juju-log "Initiate asynchronous index build"
-  initctl emit --no-wait opengrok-index
-}
-
 # Actual processing
 COMMAND=$(basename $0)
 
 case $COMMAND in
   install)
-    [[ -d /usr/share/tomcat6 ]] || install_tomcat6
-    compile_templates
+    install_tomcat6
     install_opengrok
     restart_opengrok
     juju-log "Opengrok installed, expose service and visit http://HOSTIP:8080/source"
@@ -180,13 +151,9 @@ case $COMMAND in
     stop_opengrok
     ;;
   config-changed)
-    . inc/common
-    # Unless you have a better way to suck in ENVIRONMENT into a
-    # python script
     hooks/py-config-changed
     ;;
   upgrade-charm)
-    compile_templates
     install_opengrok
     restart_opengrok 
     juju-log "Opengrok upgraded"

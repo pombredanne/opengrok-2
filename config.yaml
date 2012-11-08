@@ -1,6 +1,22 @@
 # vim:ts=2:sw=2:et:ft=yaml:
 options:
-  og-content:
+  grok_src:
+    type: string
+    default: /var/opengrok/src
+    description: Location where user supplied code lives, always preserved.
+
+  grok_data:
+    type: string
+    default: /var/opengrok/data
+    description: Location where opengrok generated indexes live.
+
+  preserve_grok_indexes:
+    type: boolean
+    default: True
+    description: on charm-upgrade, preserve contents of $grok_data.
+      NOTE indexes are always destroyed during install to ensure a sane environment.
+
+  og_content:
     default: '{
       "repos":[
         {
@@ -14,8 +30,8 @@ options:
         },
 
         {
-          "url"   : "git:foo",
-          "alias" : "bar"
+          "url"   : "git://github.com/ppetraki/cisco-fc-failover.git",
+          "alias" : "cisco-fc-failover"
         },
 
         {
@@ -32,7 +48,7 @@ options:
       and index once. Example syntax:
 
         XXX fix the quoting
-        og-content=[{ 'url' : 'lp:juju', 'alias' : 'juju'}, {...}]
+        og_content=[{ 'url' : 'lp:juju', 'alias' : 'juju'}, {...}]
 
       Where url is the repo link and alias is the directory name to create on it's
       behalf. 'alias' can be value null in which case the default repo dir is used.
