@@ -22,7 +22,7 @@ opengrok_install_cronjob() {
 #!/bin/sh
 # We run synchronously here so that the runtime of this infrequent
 # cronjob is accounted for.
-initctl emit opengrok-index
+initctl start opengrok-index
 EOF
   chmod +x ${job}
 }
@@ -31,6 +31,8 @@ opengrok_install_upstart_index_job() {
   local job=/etc/init/opengrok-index.conf
   ${LOGIT} "Installing opengrok-index upstart task"
   rm -f ${job}
+  # bash kindly interprets variables in the heredoc, deploy
+  # is expanded to it's full value.
   tee ${job} << EOF
 # opengrok-index - Kickoff index service for opengrok source code xref
 #
@@ -48,7 +50,6 @@ start on opengrok-index
 task
 
 script
-  . /opt/opengrok-charm/inc/common
   ${deploy}/bin/opengrok_update_configuration
   ${deploy}/bin/opengrok_update_index
 end script
@@ -61,31 +62,24 @@ opengrok_update_index() {
   local args='-v -S -r on'
   ${LOGIT} "Opengrok indexing (this could take a while)..."
 
-  for (( i=1; i <= 3; i++ ))
-  do
-    ${LOGIT} "Opengrok index pass ${i} starting"
+  # For the sake debugging and determinism, we're invoking this
+  # directly.
+  cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
+    -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+    -jar ${deploy}/opengrok/lib/opengrok.jar \
+     ${args} \
+    -a on \
+    -R ${grok_etc}/configuration.xml \
+    -U localhost:2424
 
-    # For the sake debugging and determinism, we're invoking this
-    # directly.
-    cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
-      -Djava.util.logging.config.file=/var/opengrok/logging.properties \
-      -jar ${deploy}/bin/../lib/opengrok.jar \
-       ${args} \
-      -a on \
-      -R ${grok_etc}/configuration.xml \
-      -U localhost:2424
-
-    if (( $? == 0 ))
-    then
-      ${LOGIT} "Opengrok index pass ${i} complete"
-      break
-    else
-      ${LOGIT} "Opengrok index pass ${i} failed, check syslog for java \
-        'Out of memory' process being killed."
-      # Can't hurt, really have no other recourse here
-      sleep 10s
-    fi
-  done
+  if (( $? == 0 ))
+  then
+    ${LOGIT} "Opengrok index complete"
+    break
+  else
+    ${LOGIT} "Opengrok index failed, check syslog for java \
+      'Out of memory' process being killed."
+  fi
 }
 
 opengrok_update_project_configuration() {
@@ -95,7 +89,7 @@ opengrok_update_project_configuration() {
 
   cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
     -Djava.util.logging.config.file=/var/opengrok/logging.properties \
-    -jar ${deploy}/opengrok/bin/../lib/opengrok.jar \
+    -jar ${deploy}/opengrok/lib/opengrok.jar \
      ${args} \
     -a on \
     -R ${grok_etc}/configuration.xml \

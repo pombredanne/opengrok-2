@@ -5,8 +5,8 @@ from __future__ import print_function
 import os, sys, re, json
 from os.path import dirname, basename, abspath
 import subprocess
-from subprocess import Popen, PIPE
-from tempfile import TemporaryFile as mkstemp
+from subprocess import Popen, PIPE, check_output
+from cStringIO import StringIO
 
 COMMAND = basename(abspath(__file__))
 
@@ -23,10 +23,9 @@ def update_index():
   Popen("initctl start opengrok-index", shell=True).communicate()
 
 def configure_opengrok():
-  scratch = mkstemp(mode='rw+b')
-  task = Popen("config-get og_content", stdout=scratch,
-      shell=True).communicate()
-
+  scratch = StringIO()
+  cmd = ['config-get', 'og_content']
+  scratch.write(check_output(cmd))
   scratch.seek(0) # must rewind before we read again
   og_content = json.load(scratch)
 
@@ -53,7 +52,7 @@ def configure_opengrok():
 
     try:
       cmd = [ 'config-get', 'grok_src' ]
-      grok_src = subprocess.check_output(cmd).strip()
+      grok_src = check_output(cmd).strip()
       project = abspath(os.path.join(grok_src, repo['alias']))
       
       if os.path.exists(project):
@@ -66,6 +65,7 @@ def configure_opengrok():
          'bzr' : checkout_bzr} [url_proto](repo['url'], project)
       except KeyError:
         juju_log("repo protocol {0} currently unsupported".format(url_proto))
+        sys.exit(1)
 
     except KeyError:
       juju_log("env key not found, was inc/common loaded?")

@@ -22,13 +22,6 @@
 
 =head2 Create hook to integrate with existing tomcat6 service
 
-  I've looked the website relation for tomcat6 and the integration
-  of additional services isn't very clear to me. I also hesitate
-  to co-op this with a general servlet engine as the IO/CPU demands
-  will easily starve out everything else. It's also wierd that there's
-  no *jsp* or *java-servlet* interface, the tomcat charms only provide
-  http.
-
   Since a subordinate charm is basically omitting the installation of
   tomcat it should be easy to make this charm both a standalone and
   subordinate capable charm.
@@ -38,14 +31,7 @@
   Whatever it is this must be fast, NFS won't cut it. May need
   to be aware of configuration parameteriztion too.
 
-=head2 Parameterize opengrok configuration at deployment
-
-  We may leave this alone for a while seeing that opengrok generates
-  a configuration.xml and deposits it in /var/opengrok/etc. Should this
-  charm build an interface to adding/removing/updating projects, paremetizing
-  the root configuration in addition to that would make for a complex
-  implementation for sure.
-
+=head2 configure java logging correctly
 =cut
 
 END_OF_DOCS
