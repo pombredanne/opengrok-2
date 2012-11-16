@@ -22,11 +22,24 @@ I/O, and CPU intensive. It is not recommended to co-op this service with
 an existing servlet engine unless you really know what you're doing.
 
 To configure:
-    XXX update with JSON format, aliases are required!
-    juju set opengrok og_content=lp:juju
+    juju set opengrok og_content='{
+>       "repos":[
+>         {
+>           "url"   : "lp:juju",
+>           "alias" : "juju"
+>         }
+>        ]
+>     }'
 
-Only lp repos are supported at this time. You can add as many repos as
-you wish though you're currently limited to adding them one at a time.
+Only bzr, lp, & git repos are supported at this time. You can add as many repos as
+you wish, see deploy.yaml for example. Config format is simple JSON array, to add
+more entries simply duplicate the { "url" : "value", "alias" : "value"} and separate
+them with a ",". Both fields are required as opposed to developing heuristics to
+determine unique project names, we require you define it upfront. Otherwise,
+lp:foo/precise/opengrok/trunk and lp:/foo/quantal/opengrok/trunk both checkout
+a directory named trunk and there's no way to determine which project was actually
+cloned.
+
 The indexer will automatically kick off to update the project and database.
 
 To check on the status of the indexer
@@ -35,11 +48,12 @@ To check on the status of the indexer
     
     opengrok-index start/running, process 10090
 
-XXX note concerning synchronous indexing
-
 A daily cronjob is installed to update the indexes.
 
 Known Issues:
+
+ * Cloning and indexing a single Linux kernel can easily take 30 mins or more.
+   This is normal but may cause config-changed hook to timeout with an error.
 
  * A bug was discovered with the history index building and has been disabled
    in the meanwhile by this charm. Tracked upstream by:

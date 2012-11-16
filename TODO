@@ -26,12 +26,11 @@
   tomcat it should be easy to make this charm both a standalone and
   subordinate capable charm.
 
-=head2 Attach and manage persistent storage for src & data
-
-  Whatever it is this must be fast, NFS won't cut it. May need
-  to be aware of configuration parameteriztion too.
-
 =head2 configure java logging correctly
+
+=head2 accomodate shared repos
+  
+  Especially useful if this is to be turned into a kernel source indexer.
 =cut
 
 END_OF_DOCS

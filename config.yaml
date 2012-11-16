@@ -22,35 +22,21 @@ options:
         {
           "url"   : "lp:juju",
           "alias" : "juju"
-        },
-
-        {
-          "url"   : "lp:ubuntu/multipath-tools",
-          "alias" : "multipath"
-        },
-
-        {
-          "url"   : "git://github.com/ppetraki/cisco-fc-failover.git",
-          "alias" : "cisco-fc-failover"
-        },
-
-        {
-          "url"   : "lp:grub",
-          "alias" : "grubby"
         }
-
        ]
     }'
-
     type: string
     description: |
       List of launchpad only repositories (lp:) using JSON arrays for opengrok to pull
       and index once. Example syntax:
 
-        XXX fix the quoting
-        og_content=[{ 'url' : 'lp:juju', 'alias' : 'juju'}, {...}]
+        og_content='{
+          "repos":[
+            { "url"   : "lp:juju", "alias" : "juju"},
+            {..., ...},
+            {..., ...}
+          ]
+       }'
 
       Where url is the repo link and alias is the directory name to create on it's
-      behalf. 'alias' can be value null in which case the default repo dir is used.
-      Alias is necessary for branches of the form series/project/trunk, which will
-      create a repo name of trunk
+      behalf, both must be set.
