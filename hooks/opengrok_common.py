@@ -2,25 +2,53 @@
 # vim:ts=2:sw=2:et:
 
 from __future__ import print_function
-import os, sys, re, json
+import os, sys, logging, re, json
 from os.path import dirname, basename, abspath
-import subprocess
 from subprocess import Popen, PIPE, STDOUT, check_output
 from cStringIO import StringIO
 
-COMMAND = basename(abspath(__file__))
+class StreamToLogger(object):
+  """
+  Fake file-list stream object that redirects writes to a logger
+  instance and juju logging
+  """
+  def __init__(self, logger, log_level=logging.INFO):
+    self.logger = logger
+    self.log_level = log_level
+    self.linebuf = ''
 
-def juju_log(args):
-  Popen(['juju-log', args], shell=False)
+  def levelmap(self):
+    try:
+      return {logging.DEBUG:    'DEBUG',
+              logging.INFO:     'INFO',
+              logging.WARN:     'WARN',
+              logging.ERROR:    'ERROR',
+              logging.CRITICAL: 'CRITICAL'}[self.log_level]
+    except KeyError:
+      return 'INFO'
+
+  def write(self, buf):
+    juju_log(buf, level=self.levelmap())
+    for line in buf.rstrip().splitlines():
+      self.logger.log(self.log_level, line.rstrip())
+
+def juju_log(args, level='INFO'):
+  Popen(['juju-log', '-l', level, args])
+
+def error(args):
+  print(args, file=sys.stderr)
 
 def checkout_git(url, path):
-  Popen("git clone {0} {1}".format(url, path), shell=True).communicate()
+  args = "git clone {0} {1}".format(url, path)
+  Popen(args.split(' '))
 
 def checkout_bzr(url, path):
-  Popen("bzr branch {0} {1}".format(url, path), shell=True).communicate()
+  args = "bzr branch {0} {1}".format(url, path)
+  Popen(args.split(' '))
 
 def update_index():
-  Popen("initctl start opengrok-index", shell=True).communicate()
+  print("updating index now")
+  Popen("initctl start --no-wait opengrok-index".split(' '))
 
 def configure_opengrok():
   scratch = StringIO()
@@ -38,10 +66,10 @@ def configure_opengrok():
       if repo['url'] is None:
         raise ValueError
     except ValueError:
-      juju_log("Broken configuration file, url value is missing!")
+      error("Broken configuration file, url value is missing!")
       raise
     except KeyError:
-      juju_log("Broken configuration file, url key is missing!")
+      error("Broken configuration file, url key is missing!")
       raise
     else:
       url = repo['url']
@@ -50,20 +78,20 @@ def configure_opengrok():
       if repo['alias'] is None:
         raise ValueError
     except ValueError:
-      juju_log("Broken configuration file, alias value is missing!")
+      error("Broken configuration file, alias value is missing!")
       raise
     except KeyError:
-      juju_log("Broken configuration file, alias key is missing!")
+      error("Broken configuration file, alias key is missing!")
       raise
     else:
       alias = repo['alias']
 
     if re.match("^(lp:|lp:\~|bzr:\/\/|bzr+ssh:\/\/)", url) != None:
-      juju_log("matched a bzr url %{0}".format(url))
+      print("matched a bzr url {0}".format(url))
       url_proto='bzr'
 
     if re.match("(^git@|^git:\/\/|\.git$)", url) != None:
-      juju_log("matched a git url %{0}".format(url))
+      print("matched a git url {0}".format(url))
       url_proto='git'
 
     cmd = [ 'config-get', 'grok_src' ]
@@ -71,14 +99,14 @@ def configure_opengrok():
     project = abspath(os.path.join(grok_src, alias))
     
     if os.path.exists(project):
-      juju_log("Skipping project {0}, directory exists".format(project))
+      print("Skipping project {0}, directory exists".format(project))
       continue
 
     try:
       {'git' : checkout_git,
        'bzr' : checkout_bzr} [url_proto](url, project)
     except KeyError:
-      juju_log("repo protocol {0} currently unsupported".format(url_proto))
+      error("repo protocol {0} currently unsupported".format(url_proto))
       raise
 
   update_index()
@@ -87,8 +115,23 @@ def configure_opengrok():
 
 if __name__ == "__main__":
   try:
+    logging.basicConfig(
+       level=logging.DEBUG,
+       format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+       filename=os.path.join('/var/log/juju', 'opengrok-common.log'),
+       filemode='a'
+    )
+
+    # STDOUT and STDERR simultaniously go to logfile and juju-log
+    # Popen is called without shell so atleast output goes to auxilary logfile
+    sys.stdout = StreamToLogger(logging.getLogger('STDOUT'),
+                                logging.INFO)
+    sys.stderr= StreamToLogger(logging.getLogger('STDERR'),
+                                logging.ERROR)
     configure_opengrok()
-  except Exception:
+  except Exception as e:
+    print("unhandled exception caught in main: {0}".format(type(e)))
+    print("XXX {0}:{1}".format(e.args,e.message))
     sys.exit(1)
 
   sys.exit(0)

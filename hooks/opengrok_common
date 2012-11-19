@@ -69,9 +69,10 @@ install_opengrok() {
   juju-log "Installing ${basedir} JAR from tarball"
   local templocation=$(ch_get_file ${grok_jar} ${tarball_sha256})
   tar xzf ${templocation} -C ${DEPLOY}
+  chown -R root:root ${DEPLOY}
 
   # update symlink to the latest
-  ln -sf ${DEPLOY}/${basedir} ${DEPLOY}/opengrok
+  ln -nsf ${DEPLOY}/${basedir} ${DEPLOY}/opengrok
 
   local grok_src=$(config-get grok_src)
   local grok_data=$(config-get grok_data)
