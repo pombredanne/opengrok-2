@@ -1,7 +1,36 @@
 # vim:ts=2:sw=2:et:ft=yaml:
 options:
-  og-content:
-    default: ""
+  grok_src:
+    type: string
+    default: /var/opengrok/src
+    description: Location where user supplied code lives, always preserved.
+
+  grok_data:
+    type: string
+    default: /var/opengrok/data
+    description: Location where opengrok generated indexes live.
+
+  og_content:
+    default: '{
+      "repos":[
+        {
+          "url"   : "lp:juju",
+          "alias" : "juju"
+        }
+       ]
+    }'
     type: string
     description: |
-      List of launchpad only repositories (lp:) to be branched and indexed by opengrok.
+      List of bzr, lp, or git repos using JSON arrays for opengrok to pull
+      and index once. Example syntax:
+
+        og_content='{
+          "repos":[
+            { "url" : "lp:juju", "alias" : "juju"},
+            {..., ...},
+            {..., ...}
+          ]
+       }'
+
+      Where url is the repo link and alias is the directory name to create on it's
+      behalf, both must be set.

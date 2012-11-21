@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<%
+import subprocess
+import os
+
+cmd = [ 'config-get', 'grok_src' ]
+grok_src = subprocess.check_output(cmd).strip()
+
+cmd = [ 'config-get', 'grok_data' ]
+grok_data = subprocess.check_output(cmd).strip()
+
+%>
+<java class="java.beans.XMLDecoder">
+ <object class="org.opensolaris.opengrok.configuration.Configuration">
+  <void property="allowLeadingWildcard">
+   <boolean>true</boolean>
+  </void>
+  <void property="dataRoot">
+   <string>$grok_data</string>
+  </void>
+  <void property="sourceRoot">
+   <string>$grok_src</string>
+  </void>
+  <void property="ctags">
+   <string>/usr/bin/ctags</string>
+  </void>
+ </object>
+</java>

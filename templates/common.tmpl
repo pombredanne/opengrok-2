@@ -1,0 +1,109 @@
+#!/bin/bash
+# vim:ts=2:sw=2:et:ft=sh:
+
+deploy=/opt/opengrok-charm
+grok_etc=/etc/opengrok
+grok_java_heap='-Xmx2048m'
+grok_ctags=/usr/bin/ctags
+
+# check fails if var is unset or empty
+if [ -n "${JUJU_AGENT_SOCKET:+x}" ]
+then
+  LOGIT='juju-log'
+else
+  LOGIT='logger -p user.info -t opengrok'
+fi
+
+opengrok_install_cronjob() {
+  local job=/etc/cron.daily/opengrok
+  ${LOGIT} "Installing daily index update cron job"
+  rm -f ${job}
+  tee ${job} << EOF
+#!/bin/sh
+# We run synchronously here so that the runtime of this infrequent
+# cronjob is accounted for.
+initctl start opengrok-index
+EOF
+  chmod +x ${job}
+}
+
+opengrok_install_upstart_index_job() {
+  local job=/etc/init/opengrok-index.conf
+  ${LOGIT} "Installing opengrok-index upstart task"
+  rm -f ${job}
+  # bash kindly interprets variables in the heredoc, deploy
+  # is expanded to it's full value.
+  tee ${job} << EOF
+# opengrok-index - Kickoff index service for opengrok source code xref
+#
+# This helper runs the opengrok indexing service.
+#
+# Recommened invocation: initctl emit --no-wait opengrok-index
+#
+# As indexing can take anywhere from 5 mins to several hours depending
+# on how many projects are present and their size.
+
+description "Update opengrok indexes"
+
+start on opengrok-index
+
+task
+
+script
+  ${deploy}/bin/opengrok_update_configuration
+  ${deploy}/bin/opengrok_update_index
+end script
+
+# vim:ts=4:sw=4:et:
+EOF
+}
+
+
+opengrok_configure_logging() {
+  local filename='opengrok%g.%u.log'
+  local logdir='/var/log/opengrok'
+  local path="${logdir}/${filename}"
+  local logger="${deploy}/opengrok/doc/logging.properties"
+
+  mkdir -p ${logdir}
+  sed "s|${filename}|${path}|g" ${logger} > /etc/opengrok/logging.properties
+}
+
+opengrok_update_index() {
+  local args='-v -S -r on'
+  ${LOGIT} "Opengrok indexing (this could take a while)..."
+
+  # For the sake debugging and determinism, we're invoking this
+  # directly.
+  cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
+    -Djava.util.logging.config.file=/etc/opengrok/logging.properties \
+    -jar ${deploy}/opengrok/lib/opengrok.jar \
+     ${args} \
+    -a on \
+    -R ${grok_etc}/configuration.xml \
+    -U localhost:2424
+
+  if (( $? == 0 ))
+  then
+    ${LOGIT} "Opengrok index complete"
+    break
+  else
+    ${LOGIT} "Opengrok index failed, check syslog for java \
+      'Out of memory' process being killed."
+  fi
+}
+
+opengrok_update_project_configuration() {
+  # We need to ensure that history building is unset
+  # -P updates the project list and -n ensures that no indexing occurs
+  local args=-Pn
+
+  cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
+    -Djava.util.logging.config.file=/etc/opengrok/logging.properties \
+    -jar ${deploy}/opengrok/lib/opengrok.jar \
+     ${args} \
+    -a on \
+    -R ${grok_etc}/configuration.xml \
+    -W ${grok_etc}/configuration.xml \
+    -U localhost:2424
+}

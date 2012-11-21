@@ -2,19 +2,39 @@
 # vim:ts=2:sw=2:et:filetype=sh:
 set -eu #-x for verbose logging to juju debug-log
 
-# Deployment details, shared with other processes
-# '|' isn't a valid POSIX path var so perfect delimiter
-sed -i -e "s|%%PWD%%|${PWD}|g" inc/common
-sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_configuration
-sed -i -e "s|%%PWD%%|${PWD}|g" scripts/opengrok_update_index
-
-. inc/common
-
 CWD=$(dirname $0)
+
+DEPLOY=/opt/opengrok-charm
+TMPL=${CHARM_DIR}/templates
+INC=${DEPLOY}/inc
+BIN=${DEPLOY}/bin
 
 install_tomcat6() {
   apt-get -qq update
   apt-get -qqy install tomcat6
+}
+
+install_debug_helper() {
+  # make vim configuration sane for onsite editing
+  cat > /etc/vim/vimrc.local <<\EOF
+set bg=dark
+if exists("+modelines") 
+     " the following is required because of SuSE's paranoid /etc/vimrc 
+     " and to force 'modeline' on even for root in Vim 7.0.237 and later 
+     set modeline modelines=5 
+     " the following disables a dangerous modeline in one helpfile 
+     if has ('autocmd') 
+         au BufReadPost ada.txt setl nomodeline ft=help 
+     endif 
+endif
+EOF
+}
+
+compile_templates() {
+  juju-log "Compiling templates"
+
+  cheetah compile  ${TMPL}/configuration_xml.tmpl
+  chmod a+x ${TMPL}/*.py
 }
 
 install_opengrok() {
@@ -32,33 +52,44 @@ install_opengrok() {
   juju-log "Preparing to install OpenGrok"
   add-apt-repository -y ppa:charmers/charm-helpers
   apt-get -qq update
-  apt-get -qqy install exuberant-ctags bzr charm-helper-sh
+  apt-get -qqy install exuberant-ctags bzr git charm-helper-sh python-cheetah
+
+  rm -rf ${DEPLOY} ${INC} ${BIN} && mkdir -p ${DEPLOY} ${INC} ${BIN}
+  compile_templates
+
+  # install and load shared definitions
+  install -m 755 -o root -g root ${TMPL}/common.tmpl ${INC}/common
+  . ${INC}/common
 
   # loading helper library
   . /usr/share/charm-helper/sh/net.sh
 
+  install_debug_helper
+
   juju-log "Installing ${basedir} JAR from tarball"
   local templocation=$(ch_get_file ${grok_jar} ${tarball_sha256})
-  rm -rf /opt/opengrok/${basedir}
-  tar xzf ${templocation} -C /opt
+  tar xzf ${templocation} -C ${DEPLOY}
+  chown -R root:root ${DEPLOY}
 
   # update symlink to the latest
-  ln -sf /opt/${basedir} /opt/opengrok
+  ln -nsf ${DEPLOY}/${basedir} ${DEPLOY}/opengrok
+
+  local grok_src=$(config-get grok_src)
+  local grok_data=$(config-get grok_data)
 
   juju-log "Creating opengrok src and data store"
   mkdir -p ${grok_src}
 
   if [[ "$(basename $0)" != "upgrade-charm" ]]
   then
-    rm   -rf ${grok_data} && mkdir -p ${grok_data}
+    rm -rf ${grok_data} && mkdir -p ${grok_data}
   else
     juju-log "preserving ${grok_data} on charm-upgrade"
   fi
 
-  # XXX on upgrade, conditionally destroy this, config option
   if [[ "$(basename $0)" != "upgrade-charm" ]]
   then
-    rm   -rf ${grok_etc} && mkdir -p ${grok_etc}
+    rm -rf ${grok_etc} && mkdir -p ${grok_etc}
   else
     juju-log "preserving ${grok_etc} on charm-upgrade"
   fi
@@ -66,23 +97,31 @@ install_opengrok() {
   juju-log "Deploying opengrok war to servlet root"
   # deploy script scans for common servlets and had hardcoded paths
   # should you use tomcat7 this will probably not work.
-  cd /opt/opengrok/bin && ./OpenGrok deploy
+  rm -rf /var/lib/tomcat6/webapps/source
+  cd ${DEPLOY}/opengrok/bin && ./OpenGrok deploy
 
-  # workaround the history index heap OOM bug by regenerating the
-  # config file without these directives, call this function everytime
-  # a new project is added to ${grok_src}
+  # Lay down baseline configuration
+  ${TMPL}/configuration_xml.py > ${grok_etc}/configuration.xml
+
+  # install helper scripts
+  install -m 755 -o root -g root ${TMPL}/opengrok_update_configuration.tmpl \
+    ${BIN}/opengrok_update_configuration
+  install -m 755 -o root -g root ${TMPL}/opengrok_update_index.tmpl \
+    ${BIN}/opengrok_update_index
+
+  opengrok_configure_logging
+
   opengrok_update_project_configuration
 
   opengrok_install_upstart_index_job
 
   # The cron job runs the upstart job synchronously
   opengrok_install_cronjob
-
 }
 
 start_opengrok() {
   juju-log "Starting opengrok service"
-  service status tomcat6 || service tomcat6 start
+  service tomcat6 status || service tomcat6 start
   open-port 8080/tcp
 }
 
@@ -98,38 +137,6 @@ restart_opengrok() {
   service tomcat6 status && service tomcat6 restart || service tomcat6 start
 }
 
-configure_opengrok() {
-  # Can only parse one at a time but you can call this multiple
-  # times to incrementally build up your source repos
-  local og_content=$(config-get og-content)
-
-  if echo ${og_content} | grep -q ^lp:; then
-    local repo_name=$(echo ${og_content} | perl -ne '@F = split(":",$_); print("$F[-1]");')
-  else
-    juju-log "No lp branch provided, failing safe"
-    return 0
-  fi
-
-  # Need to handle slashified repo names
-  if echo ${og_content} | grep -q '/'; then
-    repo_name=$(echo ${og_content} | perl -ne '@F = split("/",$_); print("$F[-1]");')
-  fi
-
-  if [ -d "${grok_src}/${repo_name}" ]; then
-    # XXX config option to always overwrite
-    juju-log "Updating existing branch ${og_content}"
-    cd "${grok_src}/${repo_name}" && bzr update
-  else
-    juju-log "Checking out new branch ${og_content}"
-    bzr branch ${og_content} "${grok_src}/${repo_name}"
-  fi
-
-  # update config and update index
-
-  juju-log "Initiate asynchronous index build"
-  initctl emit --no-wait opengrok-index
-}
-
 # Actual processing
 COMMAND=$(basename $0)
 
@@ -138,7 +145,8 @@ case $COMMAND in
     install_tomcat6
     install_opengrok
     restart_opengrok
-    juju-log "Opengrok installed, expose service and visit http://HOSTIP:8080/source"
+    hostname=$(unit-get public-address)
+    juju-log "Opengrok installed, expose service and visit http://${hostname}:8080/source"
     ;;
   start)
     start_opengrok
@@ -147,7 +155,7 @@ case $COMMAND in
     stop_opengrok
     ;;
   config-changed)
-    configure_opengrok
+    hooks/py-config-changed
     ;;
   upgrade-charm)
     install_opengrok
@@ -155,7 +163,7 @@ case $COMMAND in
     juju-log "Opengrok upgraded"
     ;;
   website-relation-joined)
-    relation-set port=8080 hostname=`unit-get private-address`
+    relation-set port=8080 hostname=$(unit-get private-address)
     ;;
   *)
     juju-log "Command not recognized"

@@ -11,41 +11,27 @@
 
 =head2 create project interface to add|remove|update source trees
 
-  If I keep the defaults of "deploy", this is doable. That means
-  every dir in src/ is considered it's own project. I can leave out
-  super projects for now and concentrate on the CRUD cycle for launchpad
-  branches only. That doesn't mean you couldn't use this for any other
-  VCS, it's just that at least initially it will get lp/bzr projects up
-  faster than configuring it yourself. Which really isn't a big deal,
-  ssh in, cd /var/opengrok/src && bzr branch lp:foo. Add additional
-  VCS as needed.
+  Thus far, the "C" and "U" of CRUD is complete. Implementing the
+  rest is a real challenge. I may be exceeding the design contract
+  for juju config state. I don't like it that if this fails the
+  entire charm reports failed and the user would be forced to
+  use debug consoles and run individual hooks to discover the fault,
+  which may be transiant. For example you could have a perfectly
+  good lp repo but the attempt to pull from lp failed for reasons
+  outside of your control.
 
 =head2 Create hook to integrate with existing tomcat6 service
-
-  I've looked the website relation for tomcat6 and the integration
-  of additional services isn't very clear to me. I also hesitate
-  to co-op this with a general servlet engine as the IO/CPU demands
-  will easily starve out everything else. It's also wierd that there's
-  no *jsp* or *java-servlet* interface, the tomcat charms only provide
-  http.
 
   Since a subordinate charm is basically omitting the installation of
   tomcat it should be easy to make this charm both a standalone and
   subordinate capable charm.
 
-=head2 Attach and manage persistent storage for src & data
-
-  Whatever it is this must be fast, NFS won't cut it. May need
-  to be aware of configuration parameteriztion too.
-
-=head2 Parameterize opengrok configuration at deployment
-
-  We may leave this alone for a while seeing that opengrok generates
-  a configuration.xml and deposits it in /var/opengrok/etc. Should this
-  charm build an interface to adding/removing/updating projects, paremetizing
-  the root configuration in addition to that would make for a complex
-  implementation for sure.
-
+=head2 Accomodate shared repos
+  
+  When cloning and maintaining Linux kernel repos, one typically uses linux-2.6
+  as a reference and git merely copies the deltas into the new tree. This saves
+  tons of disk space and update time.
+  
 =cut
 
 END_OF_DOCS
