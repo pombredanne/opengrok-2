@@ -58,6 +58,17 @@ end script
 EOF
 }
 
+
+opengrok_configure_logging() {
+  local filename='opengrok%g.%u.log'
+  local logdir='/var/log/opengrok'
+  local path="${logdir}/${filename}"
+  local logger="${deploy}/opengrok/doc/logging.properties"
+
+  mkdir -p ${logdir}
+  sed "s|${filename}|${path}|g" ${logger} > /etc/opengrok/logging.properties
+}
+
 opengrok_update_index() {
   local args='-v -S -r on'
   ${LOGIT} "Opengrok indexing (this could take a while)..."
@@ -65,7 +76,7 @@ opengrok_update_index() {
   # For the sake debugging and determinism, we're invoking this
   # directly.
   cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
-    -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+    -Djava.util.logging.config.file=/etc/opengrok/logging.properties \
     -jar ${deploy}/opengrok/lib/opengrok.jar \
      ${args} \
     -a on \
@@ -88,7 +99,7 @@ opengrok_update_project_configuration() {
   local args=-Pn
 
   cd ${deploy}/opengrok/bin && java ${grok_java_heap} \
-    -Djava.util.logging.config.file=/var/opengrok/logging.properties \
+    -Djava.util.logging.config.file=/etc/opengrok/logging.properties \
     -jar ${deploy}/opengrok/lib/opengrok.jar \
      ${args} \
     -a on \

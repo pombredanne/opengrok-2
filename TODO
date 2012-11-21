@@ -26,8 +26,6 @@
   tomcat it should be easy to make this charm both a standalone and
   subordinate capable charm.
 
-=head2 Configure java logging correctly
-
 =head2 Accomodate shared repos
   
   When cloning and maintaining Linux kernel repos, one typically uses linux-2.6

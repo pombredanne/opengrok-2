@@ -109,6 +109,8 @@ install_opengrok() {
   install -m 755 -o root -g root ${TMPL}/opengrok_update_index.tmpl \
     ${BIN}/opengrok_update_index
 
+  opengrok_configure_logging
+
   opengrok_update_project_configuration
 
   opengrok_install_upstart_index_job
