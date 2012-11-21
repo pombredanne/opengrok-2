@@ -14,12 +14,13 @@ To deploy:
     juju deploy opengrok
     juju expose opengrok
 
-Then do a `juju status` to determine the IP of the service, and open
-http://IPADDRESS:8080/source
+Then do a `juju status` to determine the IP of the service, and
+gvfs-open http://IPADDRESS:8080/source (open browser by mime type).
 
 The opengrok charm uses a standalone tomcat6 instance and is very space,
 I/O, and CPU intensive. It is not recommended to co-op this service with
-an existing servlet engine unless you really know what you're doing.
+an existing servlet engine unless you really know what you're doing. A
+"large" instance is recommended for anything more than a 100MB source code.
 
 To configure:
     juju set opengrok og_content='{
@@ -31,6 +32,9 @@ To configure:
 >        ]
 >     }'
 
+Or use the deploy.yaml as a template:
+    juju set opengrok --config deploy.yaml
+
 Only bzr, lp, & git repos are supported at this time. You can add as many repos as
 you wish, see deploy.yaml for example. Config format is simple JSON array, to add
 more entries simply duplicate the { "url" : "value", "alias" : "value"} and separate
@@ -40,7 +44,9 @@ lp:foo/precise/opengrok/trunk and lp:/foo/quantal/opengrok/trunk both checkout
 a directory named trunk and there's no way to determine which project was actually
 cloned.
 
-The indexer will automatically kick off to update the project and database.
+The indexer will automatically kick off to update the project and database after
+deploy has completed and whenever a new configuration is provided via the juju
+interface.
 
 To check on the status of the indexer
 
@@ -50,10 +56,24 @@ To check on the status of the indexer
 
 A daily cronjob is installed to update the indexes.
 
-Known Issues:
+When reporting bugs please be sure to include: /var/log/juju/opengrok-common.log
 
- * Cloning and indexing a single Linux kernel can easily take 30 mins or more.
-   This is normal but may cause config-changed hook to timeout with an error.
+Known Issues:
+ * To maintain idempotent contract, config-changed is completely synchronous.
+   Meaning it will not exit until all specified branches have been cloned and
+   the indexing has completed. config-changed may abort due to an unspecified
+   deadline timer, there is no way to extend this timer. Should you encounter
+   this, 1) file a bug 2) ssh into the instance and clone/index the tree directly.
+    * cloning & indexing Linux kernels (~30 mins) may hit this issue.
+    * To update these "off config" trees:
+     - juju ssh opengrok/N
+     - sudo -i
+     - initctl start --no-wait opengrok-index
+
+ * While only git and bzr are supported by config-changed. You can ssh in
+   and install any VCS you wish and clone into $grok_src. config-changed skips
+   over any existing directories and the charm never destroys user data in
+   $grok_src.
 
  * A bug was discovered with the history index building and has been disabled
    in the meanwhile by this charm. Tracked upstream by:
@@ -65,10 +85,12 @@ Known Issues:
 
  * Updating existing sandboxes: currently this is a manual affair, eventually a
    cron job will exist that will walk sandboxes, pull them and kickoff an update
-Links:
 
-- Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/
-- BugTracker: http://defect.opensolaris.org/bz/describecomponents.cgi?product=opengrok
-- Binary: http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
-- Code: hg clone ssh://anon@hg.opensolaris.org/hg/opengrok/trunk opengrok-dev
+Links:
+ * Stable opengrok-charm:      lp:~peter-petrakis/charms/precise/opengrok/trunk
+ * Developemnt opengrok-charm: lp:~peter-petrakis/charms/precise/opengrok/devel
+ * Homepage: http://hub.opensolaris.org/bin/view/Project+opengrok/
+ * BugTracker: http://defect.opensolaris.org/bz/describecomponents.cgi?product=opengrok
+ * Binary: http://hub.opensolaris.org/bin/download/Project+opengrok/files/opengrok-0.11.1.tar.gz
+ * Code: hg clone ssh://anon@hg.opensolaris.org/hg/opengrok/trunk opengrok-dev
 # vim:ts=4:sw=4:et:

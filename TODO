@@ -26,11 +26,14 @@
   tomcat it should be easy to make this charm both a standalone and
   subordinate capable charm.
 
-=head2 configure java logging correctly
+=head2 Configure java logging correctly
 
-=head2 accomodate shared repos
+=head2 Accomodate shared repos
   
-  Especially useful if this is to be turned into a kernel source indexer.
+  When cloning and maintaining Linux kernel repos, one typically uses linux-2.6
+  as a reference and git merely copies the deltas into the new tree. This saves
+  tons of disk space and update time.
+  
 =cut
 
 END_OF_DOCS

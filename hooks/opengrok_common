@@ -119,7 +119,7 @@ install_opengrok() {
 
 start_opengrok() {
   juju-log "Starting opengrok service"
-  service status tomcat6 || service tomcat6 start
+  service tomcat6 status || service tomcat6 start
   open-port 8080/tcp
 }
 
@@ -143,7 +143,8 @@ case $COMMAND in
     install_tomcat6
     install_opengrok
     restart_opengrok
-    juju-log "Opengrok installed, expose service and visit http://HOSTIP:8080/source"
+    hostname=$(unit-get public-address)
+    juju-log "Opengrok installed, expose service and visit http://${hostname}:8080/source"
     ;;
   start)
     start_opengrok
@@ -160,7 +161,7 @@ case $COMMAND in
     juju-log "Opengrok upgraded"
     ;;
   website-relation-joined)
-    relation-set port=8080 hostname=`unit-get private-address`
+    relation-set port=8080 hostname=$(unit-get private-address)
     ;;
   *)
     juju-log "Command not recognized"
